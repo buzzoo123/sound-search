@@ -1,5 +1,7 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
+import { promises as fs } from 'fs'
+import path from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
@@ -59,6 +61,66 @@ app.whenReady().then(() => {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+
+  // Add this to src/main/index.ts, inside app.whenReady().then() callback
+// Handle folder selection
+ipcMain.handle('select-samples-directory', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+    title: 'Select Samples Folder'
+  })
+  
+  if (!result.canceled) {
+    return result.filePaths[0]
+  }
+  return null
+})
+
+// Handle scanning for audio files
+ipcMain.handle('scan-samples', async (_, directoryPath) => {
+  try {
+    const audioExtensions = ['.wav', '.mp3', '.aiff', '.flac', '.ogg']
+    const files = await scanDirectory(directoryPath, audioExtensions)
+    return files
+  } catch (error) {
+    console.error('Error scanning for samples:', error)
+    return []
+  }
+})
+
+// Recursive function to scan directory for audio files
+async function scanDirectory(directory, extensions) {
+  let results = []
+  
+  try {
+    const items = await fs.readdir(directory, { withFileTypes: true })
+    
+    for (const item of items) {
+      const fullPath = path.join(directory, item.name)
+      
+      if (item.isDirectory()) {
+        // Recursively scan subdirectories
+        const subResults = await scanDirectory(fullPath, extensions)
+        results = results.concat(subResults)
+      } else {
+        // Check if file has an audio extension
+        const ext = path.extname(item.name).toLowerCase()
+        if (extensions.includes(ext)) {
+          results.push({
+            name: item.name,
+            path: fullPath,
+            directory: directory,
+            extension: ext
+          })
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`Error reading directory ${directory}:`, error)
+  }
+  
+  return results
+}
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -72,3 +134,4 @@ app.on('window-all-closed', () => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
+

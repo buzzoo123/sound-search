@@ -6,7 +6,15 @@ import { electronAPI } from '@electron-toolkit/preload'
 const api = {
   // Make sure these functions are defined exactly as shown here
   selectSamplesDirectory: () => ipcRenderer.invoke('select-samples-directory'),
-  scanSamples: (directoryPath: string) => ipcRenderer.invoke('scan-samples', directoryPath)
+  scanSamples: (directoryPath: string) => ipcRenderer.invoke('scan-samples', directoryPath),
+  generateEmbedding: (filePath) => ipcRenderer.invoke('generate-embedding', filePath),
+  generateEmbeddingsBatch: (samples) => ipcRenderer.invoke('generate-embeddings-batch', samples),
+  findSimilarSamples: (samplePath) => ipcRenderer.invoke('find-similar-samples', samplePath),
+  getEmbeddingStats: () => ipcRenderer.invoke('get-embedding-stats'),
+  clearEmbeddings: () => ipcRenderer.invoke('clear-embeddings'),
+  getStoragePath: () => ipcRenderer.invoke('get-storage-path'),
+  debugFileSystem: () => ipcRenderer.invoke('debug-file-system'),
+  getAllEmbeddings: () => ipcRenderer.invoke('get-all-embeddings')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

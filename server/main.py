@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,4 +42,5 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 app.include_router(prefix='/api', router=search_router)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))  # Get PORT from env, default to 8000
+    uvicorn.run(app, host="0.0.0.0", port=port)

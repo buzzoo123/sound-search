@@ -8,6 +8,7 @@ from utils.extensions import limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
+import uvicorn
 
 app = FastAPI(
     title="Audio/Text Embedding API",
@@ -38,3 +39,6 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 # Mount the router
 app.include_router(prefix='/api', router=search_router)
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,6 +1,7 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, protocol } from 'electron'
 import { join } from 'path'
-import { promises as fs } from 'fs'
+import { promises as fsPromises } from 'fs'
+import fs from 'fs'
 import path from 'path'
 // import faiss from 'faiss-node'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -21,14 +22,14 @@ async function debugFileSystem() {
 
   // Check if directories exist
   try {
-    const userDataStats = await fs.stat(userDataPath);
+    const userDataStats = await fsPromises.stat(userDataPath);
     console.log(`User data directory exists: ${userDataStats.isDirectory()}`);
   } catch (error) {
     console.log(`Error checking user data directory: ${error.message}`);
     
     // Try to create it
     try {
-      await fs.mkdir(userDataPath, { recursive: true });
+      await fsPromises.mkdir(userDataPath, { recursive: true });
       console.log(`Created user data directory`);
     } catch (createError) {
       console.log(`Failed to create user data directory: ${createError.message}`);
@@ -38,15 +39,15 @@ async function debugFileSystem() {
   // Check if we can write a test file
   const testFilePath = path.join(userDataPath, 'test-write.txt');
   try {
-    await fs.writeFile(testFilePath, 'Test write operation');
+    await fsPromises.writeFile(testFilePath, 'Test write operation');
     console.log(`Successfully wrote test file: ${testFilePath}`);
     
     // Try to read it back
-    const content = await fs.readFile(testFilePath, 'utf-8');
+    const content = await fsPromises.readFile(testFilePath, 'utf-8');
     console.log(`Successfully read test file, content: ${content}`);
     
     // Clean up
-    await fs.unlink(testFilePath);
+    await fsPromises.unlink(testFilePath);
     console.log(`Successfully deleted test file`);
   } catch (error) {
     console.log(`Error with test file operations: ${error.message}`);
@@ -54,7 +55,7 @@ async function debugFileSystem() {
 
   // Check if the index file exists
   try {
-    const indexStats = await fs.stat(indexPath);
+    const indexStats = await fsPromises.stat(indexPath);
     console.log(`Index file exists: true, size: ${indexStats.size} bytes`);
   } catch (error) {
     console.log(`Index file does not exist: ${error.message}`);
@@ -62,12 +63,12 @@ async function debugFileSystem() {
 
   // Check if the metadata file exists
   try {
-    const metadataStats = await fs.stat(metadataPath);
+    const metadataStats = await fsPromises.stat(metadataPath);
     console.log(`Metadata file exists: true, size: ${metadataStats.size} bytes`);
     
     // Try to read it
     try {
-      const content = await fs.readFile(metadataPath, 'utf-8');
+      const content = await fsPromises.readFile(metadataPath, 'utf-8');
       console.log(`Metadata file content (first 100 chars): ${content.substring(0, 100)}...`);
       console.log(`Total metadata entries: ${JSON.parse(content).length}`);
     } catch (readError) {
@@ -98,7 +99,7 @@ async function saveIndex(index) {
     
     // Verify the file was written
     try {
-      const stats = await fs.stat(getIndexPath());
+      const stats = await fsPromises.stat(getIndexPath());
       console.log(`Verified index file exists with size: ${stats.size} bytes`);
       return true;
     } catch (statError) {
@@ -112,6 +113,18 @@ async function saveIndex(index) {
   }
 }
 
+const setupAudioProtocol = () => {
+  protocol.registerFileProtocol('audio', (request, callback) => {
+    const filePath = decodeURIComponent(request.url.slice('audio://'.length))
+    try {
+      return callback({ path: filePath })
+    } catch (error) {
+      console.error('Error in audio protocol:', error)
+      return callback({ error: -2 /* FAILED */ })
+    }
+  })
+}
+
 // Update the loadIndex function to handle different FAISS implementations
 // Update loadIndex function to use the correct methods
 async function loadIndex(dimension) {
@@ -120,7 +133,7 @@ async function loadIndex(dimension) {
     
     try {
       // Check if the index file exists
-      await fs.access(indexPath);
+      await fsPromises.access(indexPath);
       console.log(`Found existing index file at: ${indexPath}`);
       
       // Use read method as shown in docs
@@ -150,17 +163,17 @@ async function saveMetadata(metadata) {
     
     try {
       // Create the directory if it doesn't exist
-      await fs.mkdir(path.dirname(getMetadataPath()), { recursive: true });
+      await fsPromises.mkdir(path.dirname(getMetadataPath()), { recursive: true });
     } catch (dirError) {
       console.log(`Note: Directory creation result: ${dirError ? dirError.message : 'already exists'}`);
     }
     
-    await fs.writeFile(getMetadataPath(), jsonString);
+    await fsPromises.writeFile(getMetadataPath(), jsonString);
     console.log(`Successfully wrote metadata file`);
     
     // Verify the file was written
     try {
-      const stats = await fs.stat(getMetadataPath());
+      const stats = await fsPromises.stat(getMetadataPath());
       console.log(`Verified metadata file exists with size: ${stats.size} bytes`);
       return true;
     } catch (statError) {
@@ -176,7 +189,7 @@ async function saveMetadata(metadata) {
 
 async function loadMetadata() {
   try {
-    const data = await fs.readFile(getMetadataPath(), 'utf-8')
+    const data = await fsPromises.readFile(getMetadataPath(), 'utf-8')
     return JSON.parse(data)
   } catch (error) {
     // If no metadata exists, return empty array
@@ -367,7 +380,7 @@ app.whenReady().then(() => {
     let results = []
     
     try {
-      const items = await fs.readdir(directory, { withFileTypes: true })
+      const items = await fsPromises.readdir(directory, { withFileTypes: true })
       
       for (const item of items) {
         const fullPath = path.join(directory, item.name)
@@ -489,7 +502,7 @@ app.whenReady().then(() => {
       let count = 0
       
       try {
-        await fs.access(getIndexPath())
+        await fsPromises.access(getIndexPath())
         hasIndex = true
       } catch {
         // Index file doesn't exist
@@ -512,11 +525,11 @@ app.whenReady().then(() => {
   ipcMain.handle('clear-embeddings', async () => {
     try {
       try {
-        await fs.unlink(getIndexPath())
+        await fsPromises.unlink(getIndexPath())
       } catch {}
       
       try {
-        await fs.unlink(getMetadataPath())
+        await fsPromises.unlink(getMetadataPath())
       } catch {}
       
       return true
@@ -534,6 +547,59 @@ app.whenReady().then(() => {
     await debugFileSystem();
     return "Debugging complete, check console logs";
   })
+
+  // Handle the getAudioUrl IPC call
+  // Handle the getAudioUrl IPC call
+  ipcMain.handle('get-audio-url', (event, filePath) => {
+    // Make sure the file exists
+    try {
+      if (fs.existsSync(filePath)) {
+        // Return a URL using our custom protocol
+        return `audio://${encodeURIComponent(filePath)}`
+      } else {
+        console.error(`File does not exist: ${filePath}`)
+        throw new Error(`File does not exist: ${filePath}`)
+      }
+    } catch (error) {
+      console.error('Error accessing audio file:', error)
+      throw new Error(`Could not access audio file: ${filePath}`)
+    }
+  })
+
+  // Handle play audio request
+ipcMain.handle('play-audio', async (event, filePath) => {
+  try {
+    // Check if the file exists using fsPromises instead of fsPromises.promises
+    if (fs.existsSync(filePath)) {
+      console.log('File exists, attempting to play:', filePath)
+      
+      // Play using the system's default audio player
+      shell.openPath(filePath)
+      return { success: true, method: 'external' }
+    } else {
+      console.error('File does not exist:', filePath)
+      return { success: false, error: 'File not found' }
+    }
+  } catch (error) {
+    console.error('Error playing audio:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+// Handle stop audio request (not much we can do with system player)
+ipcMain.handle('stop-audio', async (event) => {
+  return { success: true }
+})
+
+// Helper method to check if a file exists
+ipcMain.handle('check-file-exists', async (event, filePath) => {
+  try {
+    return fs.existsSync(filePath)
+  } catch (error) {
+    console.error('Error checking if file exists:', error)
+    return false
+  }
+})
 
 })
 

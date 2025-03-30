@@ -14,16 +14,16 @@ declare global {
       }>>
       generateEmbedding: (filePath: string) => Promise<boolean>
       generateEmbeddingsBatch: (samples: any[]) => Promise<boolean>
-      findSimilarSamples: (samplePath: string) => Promise<Array<{
-        similarity: number
+      findSimilarSamples: (payload: { file?: File; text?: string }) => Promise<Array<{ // Modified signature
+        similarity: number;
         metadata: {
-          path: string
-          filename: string
-          directory: string
-          extension: string
-          timestamp: string
-        }
-      }>>
+            path: string;
+            filename: string;
+            directory: string;
+            extension: string;
+            timestamp: string;
+        };
+    }>>;
       getEmbeddingStats: () => Promise<{
         count: number
         hasIndex: boolean

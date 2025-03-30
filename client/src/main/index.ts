@@ -1,73 +1,61 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join } from 'path'
-import { promises as fs } from 'fs'
-import path from 'path'
-// import faiss from 'faiss-node'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron';
+import { join } from 'path';
+import fs from 'fs';
+import path from 'path';
+import { electronApp, optimizer, is } from '@electron-toolkit/utils';
+import icon from '../../resources/icon.png?asset';
+import axios from 'axios';
+import FormData from 'form-data';
 
-// Import FAISS - we'll handle this with require to avoid TypeScript issues
-const faiss = require('faiss-node')
+const faiss = require('faiss-node');
 
 async function debugFileSystem() {
   const userDataPath = getUserDataPath();
   const indexPath = getIndexPath();
   const metadataPath = getMetadataPath();
-  
+
   console.log('==== DEBUGGING FILE SYSTEM ====');
   console.log(`User data path: ${userDataPath}`);
   console.log(`Index path: ${indexPath}`);
   console.log(`Metadata path: ${metadataPath}`);
 
-  // Check if directories exist
   try {
-    const userDataStats = await fs.stat(userDataPath);
+    const userDataStats = await fs.promises.stat(userDataPath);
     console.log(`User data directory exists: ${userDataStats.isDirectory()}`);
   } catch (error) {
     console.log(`Error checking user data directory: ${error.message}`);
-    
-    // Try to create it
     try {
-      await fs.mkdir(userDataPath, { recursive: true });
+      await fs.promises.mkdir(userDataPath, { recursive: true });
       console.log(`Created user data directory`);
     } catch (createError) {
       console.log(`Failed to create user data directory: ${createError.message}`);
     }
   }
 
-  // Check if we can write a test file
   const testFilePath = path.join(userDataPath, 'test-write.txt');
   try {
-    await fs.writeFile(testFilePath, 'Test write operation');
+    await fs.promises.writeFile(testFilePath, 'Test write operation');
     console.log(`Successfully wrote test file: ${testFilePath}`);
-    
-    // Try to read it back
-    const content = await fs.readFile(testFilePath, 'utf-8');
+    const content = await fs.promises.readFile(testFilePath, 'utf-8');
     console.log(`Successfully read test file, content: ${content}`);
-    
-    // Clean up
-    await fs.unlink(testFilePath);
+    await fs.promises.unlink(testFilePath);
     console.log(`Successfully deleted test file`);
   } catch (error) {
     console.log(`Error with test file operations: ${error.message}`);
   }
 
-  // Check if the index file exists
   try {
-    const indexStats = await fs.stat(indexPath);
+    const indexStats = await fs.promises.stat(indexPath);
     console.log(`Index file exists: true, size: ${indexStats.size} bytes`);
   } catch (error) {
     console.log(`Index file does not exist: ${error.message}`);
   }
 
-  // Check if the metadata file exists
   try {
-    const metadataStats = await fs.stat(metadataPath);
+    const metadataStats = await fs.promises.stat(metadataPath);
     console.log(`Metadata file exists: true, size: ${metadataStats.size} bytes`);
-    
-    // Try to read it
     try {
-      const content = await fs.readFile(metadataPath, 'utf-8');
+      const content = await fs.promises.readFile(metadataPath, 'utf-8');
       console.log(`Metadata file content (first 100 chars): ${content.substring(0, 100)}...`);
       console.log(`Total metadata entries: ${JSON.parse(content).length}`);
     } catch (readError) {
@@ -80,25 +68,17 @@ async function debugFileSystem() {
   console.log('==== END DEBUGGING FILE SYSTEM ====');
 }
 
-// Define paths for storing index and metadata
-const getUserDataPath = () => app.getPath('userData')
-const getIndexPath = () => path.join(getUserDataPath(), 'faiss-index.bin')
-const getMetadataPath = () => path.join(getUserDataPath(), 'samples-metadata.json')
-console.log(getIndexPath)
+const getUserDataPath = () => app.getPath('userData');
+const getIndexPath = () => path.join(getUserDataPath(), 'faiss-index.bin');
+const getMetadataPath = () => path.join(getUserDataPath(), 'samples-metadata.json');
 
-// Save and load functions for filesystem instead of electron-store
-// Update the saveIndex function to handle different FAISS implementations
 async function saveIndex(index) {
   try {
     console.log(`Attempting to save index to: ${getIndexPath()}`);
-    
-    // Use write method as shown in docs
     index.write(getIndexPath());
     console.log(`Successfully wrote index file using write() method`);
-    
-    // Verify the file was written
     try {
-      const stats = await fs.stat(getIndexPath());
+      const stats = await fs.promises.stat(getIndexPath());
       console.log(`Verified index file exists with size: ${stats.size} bytes`);
       return true;
     } catch (statError) {
@@ -112,18 +92,12 @@ async function saveIndex(index) {
   }
 }
 
-// Update the loadIndex function to handle different FAISS implementations
-// Update loadIndex function to use the correct methods
 async function loadIndex(dimension) {
   try {
     const indexPath = getIndexPath();
-    
     try {
-      // Check if the index file exists
-      await fs.access(indexPath);
+      await fs.promises.access(indexPath);
       console.log(`Found existing index file at: ${indexPath}`);
-      
-      // Use read method as shown in docs
       const loadedIndex = faiss.IndexFlatL2.read(indexPath);
       console.log(`Successfully loaded index with dimension: ${loadedIndex.getDimension()}`);
       console.log(`Total vectors in index: ${loadedIndex.ntotal()}`);
@@ -131,8 +105,6 @@ async function loadIndex(dimension) {
     } catch (error) {
       console.log(`No existing index file found or error reading it: ${error.message}`);
     }
-    
-    // Create a new index
     console.log(`Creating new index with dimension: ${dimension}`);
     return new faiss.IndexFlatL2(dimension);
   } catch (error) {
@@ -147,20 +119,15 @@ async function saveMetadata(metadata) {
     console.log(`Attempting to save metadata to: ${getMetadataPath()}`);
     const jsonString = JSON.stringify(metadata, null, 2);
     console.log(`Successfully serialized metadata, JSON length: ${jsonString.length} bytes`);
-    
     try {
-      // Create the directory if it doesn't exist
-      await fs.mkdir(path.dirname(getMetadataPath()), { recursive: true });
+      await fs.promises.mkdir(path.dirname(getMetadataPath()), { recursive: true });
     } catch (dirError) {
       console.log(`Note: Directory creation result: ${dirError ? dirError.message : 'already exists'}`);
     }
-    
-    await fs.writeFile(getMetadataPath(), jsonString);
+    await fs.promises.writeFile(getMetadataPath(), jsonString);
     console.log(`Successfully wrote metadata file`);
-    
-    // Verify the file was written
     try {
-      const stats = await fs.stat(getMetadataPath());
+      const stats = await fs.promises.stat(getMetadataPath());
       console.log(`Verified metadata file exists with size: ${stats.size} bytes`);
       return true;
     } catch (statError) {
@@ -176,49 +143,31 @@ async function saveMetadata(metadata) {
 
 async function loadMetadata() {
   try {
-    const data = await fs.readFile(getMetadataPath(), 'utf-8')
-    return JSON.parse(data)
+    const data = await fs.promises.readFile(getMetadataPath(), 'utf-8');
+    return JSON.parse(data);
   } catch (error) {
-    // If no metadata exists, return empty array
-    return []
+    return [];
   }
 }
 
-// Add an embedding to the index
-// Update the addEmbedding function to use the working flat array approach
-// Update addEmbedding function to match the docs
 async function addEmbedding(embedding, metadata) {
   try {
-    // Validate embedding
     if (!Array.isArray(embedding)) {
       throw new Error('Embedding must be an array');
     }
-    
     const dimension = embedding.length;
     if (dimension <= 0) {
       throw new Error('Embedding array must have a positive length');
     }
-    
-    // Load or create index
     const index = await loadIndex(dimension);
-    
-    // Add the embedding (according to docs, just pass the array directly)
     console.log(`Adding embedding with dimension: ${dimension}`);
     index.add(embedding);
     console.log(`Total vectors in index after adding: ${index.ntotal()}`);
-    
-    // Load current metadata
     const metadataList = await loadMetadata();
-    
-    // Add new metadata
     metadataList.push(metadata);
-    
-    // Save updated index and metadata
     const indexSaved = await saveIndex(index);
     const metadataSaved = await saveMetadata(metadataList);
-    
     console.log(`Index saved: ${indexSaved}, Metadata saved: ${metadataSaved}`);
-    
     return metadataList.length - 1;
   } catch (error) {
     console.error('Error in addEmbedding:', error);
@@ -226,61 +175,155 @@ async function addEmbedding(embedding, metadata) {
   }
 }
 
-// Update searchSimilar to use the flat array approach
 async function searchSimilar(queryEmbedding, numResults = 10) {
   try {
-    // Load index
-    const index = await loadIndex(queryEmbedding.length);
-    
-    // Load metadata
-    const metadataList = await loadMetadata();
-    
-    // Calculate how many results to return
-    const count = Math.min(numResults, metadataList.length);
-    
-    if (count === 0) {
-      return [];
-    }
-    
-    // Use search according to docs
-    console.log(`Searching for ${count} similar samples`);
-    const results = index.search(queryEmbedding, count);
-    
-    console.log(`Search results:`, {
-      numResults: results.labels.length,
-      labels: results.labels,
-      distances: results.distances
-    });
-    
-    // Map results to metadata using the labels from search results
-    return results.labels.map((idx, i) => ({
-      similarity: 1 / (1 + results.distances[i]),
-      metadata: metadataList[idx]
-    }));
+      console.log('Query Embedding:', queryEmbedding);
+      if (!queryEmbedding.query_embedding || !Array.isArray(queryEmbedding.query_embedding)) {
+          console.error('Query embedding is not in the correct format.');
+          return [];
+      }
+      const embeddingArray = queryEmbedding.query_embedding;
+      const index = await loadIndex(embeddingArray.length);
+      const metadataList = await loadMetadata();
+      const count = Math.min(numResults, metadataList.length);
+      if (count === 0) {
+          return [];
+      }
+      console.log(`Searching for ${count} similar samples`);
+      const results = index.search(embeddingArray, count);
+      console.log(`Search results:`, {
+          numResults: results.labels.length,
+          labels: results.labels,
+          distances: results.distances,
+      });
+      return results.labels.map((idx, i) => ({
+          similarity: 1 / (1 + results.distances[i]),
+          metadata: metadataList[idx],
+      }));
   } catch (error) {
-    console.error('Error searching for similar samples:', error);
-    return [];
+      console.error('Error searching for similar samples:', error);
+      return [];
   }
 }
 
-// Use Float32Array for better compatibility with FAISS
-function generateEmbedding(filePath) {
-  const dimensions = 128;
-  // Create a Float32Array instead of a regular JavaScript array
-  const embedding = new Float32Array(dimensions);
-  
-  // Fill with random values
-  for (let i = 0; i < dimensions; i++) {
-    embedding[i] = Math.random();
+async function getAudioEmbeddingFromBackend(filePath: string): Promise<{ query_embedding: number[] } | null> {
+  try {
+      const formData = new FormData();
+      formData.append('file', fs.createReadStream(filePath), path.basename(filePath));
+      const response = await axios.post('http://127.0.0.1:8000/api/embed/audio', formData, {
+          headers: formData.headers,
+      });
+      return response.data; // Return the entire response data
+  } catch (error) {
+      console.error('Error getting audio embedding from backend:', error);
+      return null;
   }
-  
-  // Return as a regular array for easier handling
-  return Array.from(embedding);
 }
 
+async function getTextEmbeddingFromBackend(text: string) {
+  try {
+      const formData = new FormData();
+      formData.append('text', text); // Send text as 'text' field
+
+      const headers = formData.headers;
+
+      const response = await axios.post('http://127.0.0.1:8000/api/embed/text', formData, {
+          headers: headers,
+      });
+
+      console.log('Text embedding response:', response.data);
+      return response.data;
+  } catch (error: any) {
+      console.error('Error getting text embedding from backend:', error);
+      return false;
+  }
+}
+
+async function generateEmbedding(filePath: string, text?: string) {
+  try {
+      let embedding: { query_embedding: number[] } | null = null;
+      if (text) {
+          embedding = await getTextEmbeddingFromBackend(text);
+      } else {
+          console.log('Audio filePath:', filePath); // Add this line
+          embedding = await getAudioEmbeddingFromBackend(filePath);
+      }
+      if (!embedding) {
+          throw new Error('Failed to generate embedding from backend.');
+      }
+      console.log('Generated Embedding:', embedding);
+      return embedding;
+  } catch (error) {
+      console.error('Error generating embedding:', error);
+      return null;
+  }
+}
+
+async function generateEmbeddingsBatch(samples: { path: string, name: string, directory: string, extension: string }[]) {
+  try {
+      const formData = new FormData();
+      samples.forEach((sample) => {
+          formData.append('files', fs.createReadStream(sample.path), path.basename(sample.path));
+      });
+
+      const headers = formData.headers;
+
+      const response = await axios.post('http://127.0.0.1:8000/api/embed/batch_upload', formData, {
+          headers: headers,
+      });
+
+      const sampleEmbeddings = response.data.sample_embeddings;
+      if (!sampleEmbeddings || typeof sampleEmbeddings !== 'object') {
+          console.error('Invalid sample_embeddings format from backend.');
+          return false;
+      }
+
+      for (let i = 0; i < samples.length; i++) {
+          const sample = samples[i];
+          const embedding = sampleEmbeddings[sample.name]; // Use filename as key
+
+          if (!Array.isArray(embedding)) {
+              console.error(`Invalid embedding for ${sample.name}.`);
+              continue;
+          }
+
+          const metadata = {
+              path: sample.path,
+              filename: sample.name,
+              directory: sample.directory,
+              extension: sample.extension,
+              timestamp: new Date().toISOString(),
+          };
+
+          await addEmbedding(embedding, metadata);
+      }
+
+      return true;
+  } catch (error: any) {
+      console.error('Error generating embeddings batch:', error);
+      if (error.response && error.response.data && error.response.data.detail) {
+          console.error('FastAPI validation errors:', error.response.data.detail);
+      }
+      return false;
+  }
+}
+
+async function findSimilarSamples(samplePath: string, text?: string) {
+  try {
+      const queryEmbedding = await generateEmbedding(samplePath, text);
+      console.log('Query Embedding before search:', queryEmbedding); // Add this line
+      if (!queryEmbedding || !queryEmbedding.query_embedding || !Array.isArray(queryEmbedding.query_embedding)) {
+          throw new Error('Failed to generate query embedding from backend or invalid format.');
+      }
+      const similarSamples = await searchSimilar(queryEmbedding, 20);
+      return similarSamples;
+  } catch (error) {
+      console.error('Error finding similar samples:', error);
+      return [];
+  }
+}
 
 function createWindow(): void {
-  // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
@@ -289,263 +332,195 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
-  })
+      sandbox: false,
+    },
+  });
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
+    mainWindow.show();
+  });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
+    shell.openExternal(details.url);
+    return { action: 'deny' };
+  });
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
-
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
+  electronApp.setAppUserModelId('com.electron');
   app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
+    optimizer.watchWindowShortcuts(window);
+  });
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
-
-  createWindow()
+  ipcMain.on('ping', () => console.log('pong'));
+  createWindow();
 
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
 
-  // Add this to src/main/index.ts, inside app.whenReady().then() callback
-  // Handle folder selection
   ipcMain.handle('select-samples-directory', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory'],
-      title: 'Select Samples Folder'
-    })
-    
+      title: 'Select Samples Folder',
+    });
     if (!result.canceled) {
-      return result.filePaths[0]
+      return result.filePaths[0];
     }
-    return null
-  })
+    return null;
+  });
 
-  // Handle scanning for audio files
   ipcMain.handle('scan-samples', async (_, directoryPath) => {
     try {
-      const audioExtensions = ['.wav', '.mp3', '.aiff', '.flac', '.ogg']
-      const files = await scanDirectory(directoryPath, audioExtensions)
-      return files
+      const audioExtensions = ['.wav', '.mp3', '.aiff', '.flac', '.ogg'];
+      const files = await scanDirectory(directoryPath, audioExtensions);
+      return files;
     } catch (error) {
-      console.error('Error scanning for samples:', error)
-      return []
+      console.error('Error scanning for samples:', error);
+      return [];
     }
-  })
+  });
 
-  // Recursive function to scan directory for audio files
   async function scanDirectory(directory, extensions) {
-    let results = []
-    
+    let results = [];
     try {
-      const items = await fs.readdir(directory, { withFileTypes: true })
-      
+      const items = await fs.promises.readdir(directory, { withFileTypes: true });
       for (const item of items) {
-        const fullPath = path.join(directory, item.name)
-        
+        const fullPath = path.join(directory, item.name);
         if (item.isDirectory()) {
-          // Recursively scan subdirectories
-          const subResults = await scanDirectory(fullPath, extensions)
-          results = results.concat(subResults)
+          const subResults = await scanDirectory(fullPath, extensions);
+          results = results.concat(subResults);
         } else {
-          // Check if file has an audio extension
-          const ext = path.extname(item.name).toLowerCase()
+          const ext = path.extname(item.name).toLowerCase();
+          console.log("full path", fullPath)
           if (extensions.includes(ext)) {
             results.push({
               name: item.name,
               path: fullPath,
               directory: directory,
-              extension: ext
-            })
+              extension: ext,
+            });
           }
         }
       }
     } catch (error) {
-      console.error(`Error reading directory ${directory}:`, error)
+      console.error(`Error reading directory ${directory}:`, error);
     }
-    
-    return results
+    return results;
   }
 
-  ipcMain.handle('generate-embedding', async (_, filePath) => {
+  ipcMain.handle('generate-embedding', async (_, filePath, text?: string) => {
     try {
-      const embedding = generateEmbedding(filePath)
-      
+      const embedding = await generateEmbedding(filePath, text);
+      if (!embedding) return false;
       const metadata = {
         path: filePath,
         filename: path.basename(filePath),
         directory: path.dirname(filePath),
         extension: path.extname(filePath),
-        timestamp: new Date().toISOString()
-      }
-      
-      const idx = await addEmbedding(embedding, metadata)
-      return idx !== -1
+        timestamp: new Date().toISOString(),
+      };
+      const idx = await addEmbedding(embedding, metadata);
+      return idx !== -1;
     } catch (error) {
-      console.error('Error generating embedding:', error)
-      return false
+      console.error('Error generating embedding:', error);
+      return false;
     }
-  })
+  });
 
   ipcMain.handle('get-all-embeddings', async () => {
     try {
-      // Load metadata which contains all the sample information
-      const metadataList = await loadMetadata()
-      
+      const metadataList = await loadMetadata();
       return {
         count: metadataList.length,
-        embeddings: metadataList
-      }
+        embeddings: metadataList,
+      };
     } catch (error) {
-      console.error('Error getting all embeddings:', error)
+      console.error('Error getting all embeddings:', error);
       return {
         count: 0,
-        embeddings: []
-      }
+        embeddings: [],
+      };
     }
-  })
+  });
 
   ipcMain.handle('generate-embeddings-batch', async (_, samples) => {
-    try {
-      let processedCount = 0
-      const results = []
-      
-      // Process in smaller batches to avoid UI freezing
-      const batchSize = 20
-      for (let i = 0; i < samples.length; i += batchSize) {
-        const batch = samples.slice(i, i + batchSize)
-        
-        for (const sample of batch) {
-          const embedding = generateEmbedding(sample.path)
-          
-          const metadata = {
-            path: sample.path,
-            filename: sample.name,
-            directory: sample.directory,
-            extension: sample.extension,
-            timestamp: new Date().toISOString()
-          }
-          
-          const idx = await addEmbedding(embedding, metadata)
-          results.push(idx !== -1)
-          processedCount++
-        }
-        
-        // Logging progress
-        console.log(`Processed ${processedCount}/${samples.length} samples`)
-      }
-      
-      return results.every(r => r === true)
-    } catch (error) {
-      console.error('Error generating embeddings batch:', error)
-      return false
-    }
-  })
+    return await generateEmbeddingsBatch(samples);
+  });
 
-  ipcMain.handle('find-similar-samples', async (_, samplePath) => {
-    try {
-      const queryEmbedding = generateEmbedding(samplePath)
-      const similarSamples = await searchSimilar(queryEmbedding, 20)
-      return similarSamples
-    } catch (error) {
-      console.error('Error finding similar samples:', error)
-      return []
-    }
-  })
+  ipcMain.handle('find-similar-samples', async (_, payload: { arrayBuffer?: ArrayBuffer; fileName?: string; text?: string }) => {
+      try {
+          if (payload.text) {
+              // Text search
+              return await findSimilarSamples('', payload.text);
+          } else if (payload.arrayBuffer && payload.fileName) {
+              // Audio file upload
+              const tempFilePath = path.join(app.getPath('temp'), payload.fileName);
+              await fs.promises.writeFile(tempFilePath, Buffer.from(payload.arrayBuffer));
+              const results = await findSimilarSamples(tempFilePath);
+              await fs.promises.unlink(tempFilePath);
+              return results;
+          } else {
+              throw new Error('Invalid payload for find-similar-samples');
+          }
+      } catch (error) {
+          console.error('Error finding similar samples:', error);
+          return [];
+      }
+  });
 
   ipcMain.handle('get-embedding-stats', async () => {
     try {
-      // Check if files exist
-      let hasIndex = false
-      let count = 0
-      
+      let hasIndex = false;
+      let count = 0;
       try {
-        await fs.access(getIndexPath())
-        hasIndex = true
-      } catch {
-        // Index file doesn't exist
-      }
-      
+        await fs.promises.access(getIndexPath());
+        hasIndex = true;
+      } catch {}
       try {
-        const metadata = await loadMetadata()
-        count = metadata.length
-      } catch {
-        // Metadata file doesn't exist
-      }
-      
-      return { count, hasIndex }
+        const metadata = await loadMetadata();
+        count = metadata.length;
+      } catch {}
+      return { count, hasIndex };
     } catch (error) {
-      console.error('Error getting embedding stats:', error)
-      return { count: 0, hasIndex: false }
+      console.error('Error getting embedding stats:', error);
+      return { count: 0, hasIndex: false };
     }
-  })
+  });
 
   ipcMain.handle('clear-embeddings', async () => {
     try {
       try {
-        await fs.unlink(getIndexPath())
+        await fs.promises.unlink(getIndexPath());
       } catch {}
-      
       try {
-        await fs.unlink(getMetadataPath())
+        await fs.promises.unlink(getMetadataPath());
       } catch {}
-      
-      return true
+      return true;
     } catch (error) {
-      console.error('Error clearing embeddings:', error)
-      return false
+      console.error('Error clearing embeddings:', error);
+      return false;
     }
-  })
+  });
 
   ipcMain.handle('get-storage-path', () => {
-    return app.getPath('userData')
-  })
+    return app.getPath('userData');
+  });
 
   ipcMain.handle('debug-file-system', async () => {
     await debugFileSystem();
-    return "Debugging complete, check console logs";
-  })
+    return 'Debugging complete, check console logs';
+  });
+});
 
-})
-
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
+    app.quit();
   }
-})
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
-
+});

@@ -21,97 +21,135 @@
     }
   
     async function handleSearch() {
-      if (!searchQuery) return
-      searching = true
-      
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        uploadProgress = Math.min(uploadProgress + Math.random() * 15, 95)
-      }, 200)
-      
-      try {
-        const dummyPath = searchQuery + '.wav'
-        results = await window.api.findSimilarSamples(dummyPath)
-        hasSearched = true;
-      } finally {
-        clearInterval(progressInterval)
-        uploadProgress = 100
-        
-        // Reset progress bar after completed
-        setTimeout(() => {
-          uploadProgress = 0
-          searching = false
-        }, 500)
-      }
+        if (!searchQuery) return;
+        searching = true;
+
+        // Simulate progress
+        const progressInterval = setInterval(() => {
+            uploadProgress = Math.min(uploadProgress + Math.random() * 15, 95);
+        }, 200);
+
+        try {
+            results = await window.api.findSimilarSamples({ text: searchQuery }); // Corrected line
+            hasSearched = true;
+        } finally {
+            clearInterval(progressInterval);
+            uploadProgress = 100;
+
+            // Reset progress bar after completed
+            setTimeout(() => {
+                uploadProgress = 0;
+                searching = false;
+            }, 500);
+        }
     }
   
     async function handleAudioUpload(event: Event) {
-      searching = true
-      const files = (event.target as HTMLInputElement).files
-      
-      if (files && files[0]) {
-        audioFileName = files[0].name
-        
-        // Simulate progress
-        const progressInterval = setInterval(() => {
-          uploadProgress = Math.min(uploadProgress + Math.random() * 15, 95)
-        }, 200)
-        
-        try {
-          const filePath = files[0].path
-          results = await window.api.findSimilarSamples(filePath)
-          hasSearched = true;
-        } finally {
-          clearInterval(progressInterval)
-          uploadProgress = 100
-          
-          // Reset progress bar after completed
-          setTimeout(() => {
-            uploadProgress = 0
-            searching = false
-          }, 500)
-        }
-      } else {
-        searching = false
+          searching = true;
+          const files = (event.target as HTMLInputElement).files;
+
+          if (files && files[0]) {
+              audioFileName = files[0].name;
+
+              // Simulate progress
+              const progressInterval = setInterval(() => {
+                  uploadProgress = Math.min(uploadProgress + Math.random() * 15, 95);
+              }, 200);
+
+              try {
+                  const file = files[0];
+                  const reader = new FileReader();
+
+                  reader.onload = async (e) => {
+                      const arrayBuffer = e.target?.result as ArrayBuffer;
+                      if (arrayBuffer) {
+                          results = await window.api.findSimilarSamples({
+                              arrayBuffer: arrayBuffer,
+                              fileName: file.name,
+                          });
+                          hasSearched = true;
+                      } else {
+                          console.error("Error reading file content.");
+                          searching = false;
+                      }
+                  };
+
+                  reader.onerror = () => {
+                      console.error("Error reading file.");
+                      searching = false;
+                  };
+
+                  reader.readAsArrayBuffer(file);
+              } catch (error) {
+                  console.error("Error in handleAudioUpload:", error);
+                  searching = false;
+              } finally {
+                  clearInterval(progressInterval);
+                  uploadProgress = 100;
+
+                  // Reset progress bar after completed
+                  setTimeout(() => {
+                      uploadProgress = 0;
+                      searching = false;
+                  }, 500);
+              }
+          } else {
+              searching = false;
+          }
       }
-    }
   
-    function handleDrop(event: DragEvent) {
-      event.preventDefault()
-      isDragging = false
-      searching = true
-      
-      const file = event.dataTransfer?.files?.[0]
-      if (file) {
-        audioFileName = file.name
-        
-        // Simulate progress
-        const progressInterval = setInterval(() => {
-          uploadProgress = Math.min(uploadProgress + Math.random() * 15, 95)
-        }, 200)
-        
-        window.api.findSimilarSamples(file.path)
-          .then(r => {
-            results = r
-            hasSearched = true;
-            clearInterval(progressInterval)
-            uploadProgress = 100
-            
-            // Reset progress bar after completed
-            setTimeout(() => {
-              uploadProgress = 0
-              searching = false
-            }, 500)
-          })
-          .catch(err => {
-            clearInterval(progressInterval)
-            uploadProgress = 0
-            searching = false
-          })
-      } else {
-        searching = false
+      function handleDrop(event: DragEvent) {
+          event.preventDefault();
+          isDragging = false;
+          searching = true;
+
+          const file = event.dataTransfer?.files?.[0];
+          if (file) {
+              audioFileName = file.name;
+
+              const reader = new FileReader();
+
+              reader.onload = async (e) => {
+                  const arrayBuffer = e.target?.result as ArrayBuffer;
+                  if (arrayBuffer) {
+                      window.api.findSimilarSamples({
+                          arrayBuffer: arrayBuffer,
+                          fileName: file.name,
+                      })
+                          .then(r => {
+                              results = r;
+                              hasSearched = true;
+                              clearInterval(progressInterval);
+                              uploadProgress = 100;
+
+                              // Reset progress bar after completed
+                              setTimeout(() => {
+                                  uploadProgress = 0;
+                                  searching = false;
+                              }, 500);
+                          })
+                          .catch(err => {
+                              console.error("Error in handleDrop:", err);
+                              clearInterval(progressInterval);
+                              uploadProgress = 0;
+                              searching = false;
+                          });
+                  } else {
+                      console.error("Error reading file content.");
+                      searching = false;
+                  }
+              };
+
+              reader.onerror = () => {
+                  console.error("Error reading file.");
+                  searching = false;
+              };
+
+              reader.readAsArrayBuffer(file);
+          } else {
+              searching = false;
+          }
       }
-    }
   
     onMount(() => {
       updateRotation()

@@ -1,0 +1,126 @@
+<script lang="ts">
+  import { Play } from 'lucide-svelte';
+  export let result;
+  
+  // Example duration - you would get this from your actual data
+  // If result doesn't have duration, we'll use a placeholder
+  const duration = result.metadata?.duration || "0:30";
+  
+  function playAudio() {
+    // Add your audio playback logic here
+    console.log('Playing audio:', result.metadata?.filename);
+    // Example: window.api.playAudio(result.metadata?.filepath);
+  }
+</script>
+
+<div class="card">
+  <div class="name-section">
+    <div class="name">{result.metadata?.filename}</div>
+    <div class="duration">{duration}</div>
+  </div>
+  
+  <div class="controls">
+    <button class="play-button" on:click={playAudio}>
+      <Play size={20} color="white" />
+    </button>
+    <div class="score">Similarity: {(result.similarity * 100).toFixed(1)}%</div>
+  </div>
+</div>
+
+<style>
+  .card {
+    background: #202225;
+    padding: 1.5rem;
+    border-radius: 12px;
+    font-size: 1rem;
+    display: flex;
+    overflow: hidden;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 20vh;
+    transition: all 0.3s;
+    border: 2px solid transparent;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    position: relative;
+    z-index: 0;
+  }
+
+  .card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    padding: 2px;
+    background: linear-gradient(45deg, #a370f7, #6d5be0, #4c6be0);
+    -webkit-mask: 
+      linear-gradient(#fff 0 0) content-box, 
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: destination-out;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: -1;
+  }
+
+  .card:hover::before {
+    opacity: 1;
+  }
+
+  .card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+  }
+  
+  .name-section {
+    margin-bottom: 1rem;
+  }
+
+  .name {
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: linear-gradient(90deg, #fff, #a8b2d1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .duration {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: auto;
+  }
+  
+  .play-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6d5be0, #a370f7);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .play-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(109, 91, 224, 0.5);
+  }
+
+  .score {
+    color: #90ee90; /* Light green color */
+    font-weight: 500;
+    margin-left: 1rem;
+  }
+</style>

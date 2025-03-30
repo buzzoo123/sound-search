@@ -12,6 +12,12 @@
     "strict": false,
     "allowJs": true,
     "checkJs": true,
-    "lib": ["ESNext", "DOM", "DOM.Iterable"]
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["svelte"],                             // ✅ tells TS to support .svelte
+    "baseUrl": ".",                                   // ✅ enables path aliases
+    "paths": {
+      "$components/*": ["src/renderer/src/components/*"],
+      "$lib/*": ["src/renderer/src/lib/*"]
+    }
   }
 }

@@ -8,7 +8,7 @@ import path from 'path'
 import * as mm from 'music-metadata';
 // import faiss from 'faiss-node'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import icon from '../../resources/sound-sift-logo.png?asset'
 
 // Import FAISS - we'll handle this with require to avoid TypeScript issues
 const faiss = require('faiss-node')
@@ -229,7 +229,7 @@ async function getAudioEmbeddingFromBackend(filePath: string): Promise<{ query_e
   try {
       const formData = new FormData();
       formData.append('file', fs.createReadStream(filePath), path.basename(filePath));
-      const response = await axios.post('http://127.0.0.1:8000/api/embed/audio', formData, {
+      const response = await axios.post('http://34.85.129.73:8000/api/embed/audio', formData, {
           headers: formData.headers,
       });
       return response.data; // Return the entire response data
@@ -246,7 +246,7 @@ async function getTextEmbeddingFromBackend(text: string) {
 
       const headers = formData.headers;
 
-      const response = await axios.post('http://127.0.0.1:8000/api/embed/text', formData, {
+      const response = await axios.post('http://34.85.129.73:8000/api/embed/text', formData, {
           headers: headers,
       });
 
@@ -287,7 +287,7 @@ async function generateEmbeddingsBatch(samples: { path: string, name: string, di
 
       const headers = formData.headers;
 
-      const response = await axios.post('http://127.0.0.1:8000/api/embed/batch_upload', formData, {
+      const response = await axios.post('http://34.85.129.73:8000/api/embed/batch_upload', formData, {
           headers: headers,
       });
 

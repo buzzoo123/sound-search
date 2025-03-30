@@ -65,6 +65,6 @@ async def embed_single_text(text: str = Form(...), request: Request = None):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-@app.get("/health")
+@router.get("/health")
 async def health_check():
     return {"status": "loading", "message": "gagaga"}

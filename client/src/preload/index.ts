@@ -12,7 +12,21 @@ const api = {
   getStoragePath: () => ipcRenderer.invoke('get-storage-path'),
   debugFileSystem: () => ipcRenderer.invoke('debug-file-system'),
   getAllEmbeddings: () => ipcRenderer.invoke('get-all-embeddings'),
-};
+  getAudioUrl: (filePath) => ipcRenderer.invoke('get-audio-url', filePath),
+  playAudio: (filePath) => {
+    return ipcRenderer.invoke('play-audio', filePath)
+  },
+  
+  // Stop audio playback
+  stopAudio: () => {
+    return ipcRenderer.invoke('stop-audio')
+  },
+  
+  // Check if a file exists
+  checkFileExists: (filePath) => {
+    return ipcRenderer.invoke('check-file-exists', filePath)
+  }
+}
 
 if (process.contextIsolated) {
   try {

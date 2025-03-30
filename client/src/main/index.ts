@@ -1,13 +1,18 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron';
-import { join } from 'path';
-import fs from 'fs';
-import path from 'path';
-import { electronApp, optimizer, is } from '@electron-toolkit/utils';
-import icon from '../../resources/icon.png?asset';
 import axios from 'axios';
 import FormData from 'form-data';
+import { app, shell, BrowserWindow, ipcMain, dialog, protocol } from 'electron'
+import { join } from 'path'
+import { promises as fsPromises } from 'fs'
+import fs from 'fs'
+import path from 'path'
+import * as mm from 'music-metadata';
+// import faiss from 'faiss-node'
+import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import icon from '../../resources/icon.png?asset'
 
-const faiss = require('faiss-node');
+// Import FAISS - we'll handle this with require to avoid TypeScript issues
+const faiss = require('faiss-node')
+const sound = require("sound-play");
 
 async function debugFileSystem() {
   const userDataPath = getUserDataPath();
@@ -20,7 +25,7 @@ async function debugFileSystem() {
   console.log(`Metadata path: ${metadataPath}`);
 
   try {
-    const userDataStats = await fs.promises.stat(userDataPath);
+    const userDataStats = await fsPromises.stat(userDataPath);
     console.log(`User data directory exists: ${userDataStats.isDirectory()}`);
   } catch (error) {
     console.log(`Error checking user data directory: ${error.message}`);
@@ -92,6 +97,20 @@ async function saveIndex(index) {
   }
 }
 
+const setupAudioProtocol = () => {
+  protocol.registerFileProtocol('audio', (request, callback) => {
+    const filePath = decodeURIComponent(request.url.slice('audio://'.length))
+    try {
+      return callback({ path: filePath })
+    } catch (error) {
+      console.error('Error in audio protocol:', error)
+      return callback({ error: -2 /* FAILED */ })
+    }
+  })
+}
+
+// Update the loadIndex function to handle different FAISS implementations
+// Update loadIndex function to use the correct methods
 async function loadIndex(dimension) {
   try {
     const indexPath = getIndexPath();
@@ -400,12 +419,31 @@ app.whenReady().then(() => {
           const ext = path.extname(item.name).toLowerCase();
           console.log("full path", fullPath)
           if (extensions.includes(ext)) {
+            // New code to get audio metadata
+            let duration = "0:30"; // Default fallback
+            
+            try {
+              // Parse audio metadata
+              const metadata = await mm.parseFile(fullPath);
+              
+              // Get duration in seconds
+              const durationSec = metadata.format.duration || 0;
+              
+              // Format as MM:SS
+              const minutes = Math.floor(durationSec / 60);
+              const seconds = Math.floor(durationSec % 60);
+              duration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            } catch (metadataError) {
+              console.error(`Error getting metadata for ${fullPath}:`, metadataError)
+            }
+            
             results.push({
               name: item.name,
               path: fullPath,
               directory: directory,
               extension: ext,
-            });
+              duration: duration // Add duration to the results
+            })
           }
         }
       }
@@ -517,8 +555,66 @@ app.whenReady().then(() => {
     await debugFileSystem();
     return 'Debugging complete, check console logs';
   });
+
+
+  // Handle the getAudioUrl IPC call
+  ipcMain.handle('get-audio-url', (event, filePath) => {
+    // Make sure the file exists
+    try {
+      if (fs.existsSync(filePath)) {
+        // Return a URL using our custom protocol
+        return `audio://${encodeURIComponent(filePath)}`
+      } else {
+        console.error(`File does not exist: ${filePath}`)
+        throw new Error(`File does not exist: ${filePath}`)
+      }
+    } catch (error) {
+      console.error('Error accessing audio file:', error)
+      throw new Error(`Could not access audio file: ${filePath}`)
+    }
+  })
+
+  // Handle play audio request
+ipcMain.handle('play-audio', async (event, filePath) => {
+  try {
+    // Check if the file exists using fsPromises instead of fsPromises.promises
+    if (fs.existsSync(filePath)) {
+      console.log('File exists, attempting to play:', filePath)
+      
+      // Play using the system's default audio player
+      sound.play(filePath)
+      // shell.openPath(filePath)
+      return { success: true, method: 'external' }
+    } else {
+      console.error('File does not exist:', filePath)
+      return { success: false, error: 'File not found' }
+    }
+  } catch (error) {
+    console.error('Error playing audio:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+// Handle stop audio request (not much we can do with system player)
+ipcMain.handle('stop-audio', async (event) => {
+  return { success: true }
+})
+
+// Helper method to check if a file exists
+ipcMain.handle('check-file-exists', async (event, filePath) => {
+  try {
+    return fs.existsSync(filePath)
+  } catch (error) {
+    console.error('Error checking if file exists:', error)
+    return false
+  }
+})
+
 });
 
+// Quit when all windows are closed, except on macOS. There, it's common
+// for applications and their menu bar to stay active until the user quits
+// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();

@@ -1,27 +1,92 @@
 <script lang="ts">
-  import { Play } from 'lucide-svelte';
+  import { Play, Pause } from 'lucide-svelte';
+  import { onDestroy } from 'svelte';
   export let result;
   
   // Example duration - you would get this from your actual data
   // If result doesn't have duration, we'll use a placeholder
   const duration = result.metadata?.duration || "0:30";
   
-  function playAudio() {
-    // Add your audio playback logic here
-    console.log('Playing audio:', result.metadata?.filename);
-    // Example: window.api.playAudio(result.metadata?.filepath);
+  let isPlaying = false;
+  let playbackError = false;
+  
+  function extractFilePath(result) {
+    // In your search results, the file path is in result.metadata.path 
+    // This is clear from your main/index.ts file
+    return result.metadata?.path || '';
   }
+  
+  function playAudio() {
+    // Reset error state on new attempt
+    playbackError = false;
+    
+    // Get the file path from the result
+    const filePath = extractFilePath(result);
+    console.log('Attempting to play file:', filePath);
+    
+    if (!filePath) {
+      console.error('No file path found in result:', result);
+      playbackError = true;
+      return;
+    }
+    
+    if (!isPlaying) {
+      // Start playback using the main process handler
+      window.api.playAudio(filePath)
+        .then(response => {
+          console.log('Playback response:', response);
+          
+          if (response.success) {
+            isPlaying = true;
+            
+            // Since we're using the system player, we'll automatically 
+            // reset the play button after a short delay
+            setTimeout(() => {
+              isPlaying = false;
+            }, 1000);
+          } else {
+            console.error('Playback failed:', response.error);
+            playbackError = true;
+          }
+        })
+        .catch(error => {
+          console.error('Error during playback:', error);
+          playbackError = true;
+        });
+    } else {
+      // Stop playback
+      window.api.stopAudio()
+        .then(() => {
+          isPlaying = false;
+        })
+        .catch(error => {
+          console.error('Error stopping playback:', error);
+        });
+    }
+  }
+  
+  onDestroy(() => {
+    if (isPlaying) {
+      window.api.stopAudio().catch(err => console.error('Error stopping audio on destroy:', err));
+    }
+  });
 </script>
 
 <div class="card">
   <div class="name-section">
-    <div class="name">{result.metadata?.filename}</div>
+    <div class="name" title={result.metadata?.filename || 'Unknown Sample'}>
+      {result.metadata?.filename || 'Unknown Sample'}
+    </div>
     <div class="duration">{duration}</div>
   </div>
   
   <div class="controls">
-    <button class="play-button" on:click={playAudio}>
-      <Play size={20} color="white" />
+    <button class="play-button" on:click={playAudio} class:error={playbackError}>
+      {#if isPlaying}
+        <Pause size={20} color="white" />
+      {:else}
+        <Play size={20} color="white" />
+      {/if}
     </button>
     <div class="score">Similarity: {(result.similarity * 100).toFixed(1)}%</div>
   </div>
@@ -116,6 +181,10 @@
   .play-button:hover {
     transform: scale(1.1);
     box-shadow: 0 0 12px rgba(109, 91, 224, 0.5);
+  }
+  
+  .play-button.error {
+    background: linear-gradient(135deg, #e06b5b, #f77070);
   }
 
   .score {

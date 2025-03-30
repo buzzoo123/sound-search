@@ -64,3 +64,7 @@ async def embed_single_text(text: str = Form(...), request: Request = None):
         return {"query_embedding": embedding.tolist()}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/health")
+async def health_check():
+    return {"status": "loading", "message": "gagaga"}

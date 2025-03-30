@@ -3,12 +3,14 @@ import { join } from 'path'
 import { promises as fsPromises } from 'fs'
 import fs from 'fs'
 import path from 'path'
+import * as mm from 'music-metadata';
 // import faiss from 'faiss-node'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
 // Import FAISS - we'll handle this with require to avoid TypeScript issues
 const faiss = require('faiss-node')
+const sound = require("sound-play");
 
 async function debugFileSystem() {
   const userDataPath = getUserDataPath();
@@ -375,7 +377,7 @@ app.whenReady().then(() => {
     }
   })
 
-  // Recursive function to scan directory for audio files
+  // Update your scanDirectory function
   async function scanDirectory(directory, extensions) {
     let results = []
     
@@ -393,11 +395,30 @@ app.whenReady().then(() => {
           // Check if file has an audio extension
           const ext = path.extname(item.name).toLowerCase()
           if (extensions.includes(ext)) {
+            // New code to get audio metadata
+            let duration = "0:30"; // Default fallback
+            
+            try {
+              // Parse audio metadata
+              const metadata = await mm.parseFile(fullPath);
+              
+              // Get duration in seconds
+              const durationSec = metadata.format.duration || 0;
+              
+              // Format as MM:SS
+              const minutes = Math.floor(durationSec / 60);
+              const seconds = Math.floor(durationSec % 60);
+              duration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            } catch (metadataError) {
+              console.error(`Error getting metadata for ${fullPath}:`, metadataError)
+            }
+            
             results.push({
               name: item.name,
               path: fullPath,
               directory: directory,
-              extension: ext
+              extension: ext,
+              duration: duration // Add duration to the results
             })
           }
         }
@@ -465,6 +486,7 @@ app.whenReady().then(() => {
             filename: sample.name,
             directory: sample.directory,
             extension: sample.extension,
+            duration: sample.duration, // Include the duration
             timestamp: new Date().toISOString()
           }
           
@@ -574,7 +596,8 @@ ipcMain.handle('play-audio', async (event, filePath) => {
       console.log('File exists, attempting to play:', filePath)
       
       // Play using the system's default audio player
-      shell.openPath(filePath)
+      sound.play(filePath)
+      // shell.openPath(filePath)
       return { success: true, method: 'external' }
     } else {
       console.error('File does not exist:', filePath)

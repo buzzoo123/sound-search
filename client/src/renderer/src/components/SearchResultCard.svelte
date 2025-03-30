@@ -74,7 +74,7 @@
 
 <div class="card">
   <div class="name-section">
-    <div class="name">
+    <div class="name" title={result.metadata?.filename || 'Unknown Sample'}>
       {result.metadata?.filename || 'Unknown Sample'}
     </div>
     <div class="duration">{duration}</div>
